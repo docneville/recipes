@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recipes — Add recipe</title>
+  <link rel="stylesheet" href="recipes.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <header>
+    <h1>🍲 Recipes</h1>
+    <nav>
+      <a href="app.html">Your recipes</a>
+    </nav>
+  </header>
+  <main>
+    <div class="card">
+      <h2 id="formTitle">Add recipe</h2>
+      <form id="recipeForm">
+        <label for="title">Title</label>
+        <input type="text" id="title" required>
+
+        <label for="description">Description</label>
+        <textarea id="description" rows="2"></textarea>
+
+        <div style="display:flex; gap:0.5rem;">
+          <div style="flex:1;">
+            <label for="prep_minutes">Prep (min)</label>
+            <input type="number" id="prep_minutes" min="0">
+          </div>
+          <div style="flex:1;">
+            <label for="cook_minutes">Cook (min)</label>
+            <input type="number" id="cook_minutes" min="0">
+          </div>
+          <div style="flex:1;">
+            <label for="servings">Servings</label>
+            <input type="text" id="servings" placeholder="e.g. 4">
+          </div>
+        </div>
+
+        <label for="source_name">Source (optional)</label>
+        <input type="text" id="source_name" placeholder="e.g. NYT Cooking, Grandma's card">
+
+        <label for="source_url">Source URL (optional)</label>
+        <input type="url" id="source_url" placeholder="https://…">
+
+        <label>Ingredients</label>
+        <div id="ingredientRows"></div>
+        <button type="button" id="addIngredientBtn" class="rc-add-row-btn">+ Add ingredient</button>
+
+        <label>Steps</label>
+        <div id="stepRows"></div>
+        <button type="button" id="addStepBtn" class="rc-add-row-btn">+ Add step</button>
+
+        <label for="tags">Tags (comma-separated)</label>
+        <input type="text" id="tags" placeholder="e.g. dinner, italian, quick">
+
+        <label for="notes">Notes</label>
+        <textarea id="notes" rows="3"></textarea>
+
+        <button type="submit" id="saveBtn">Save recipe</button>
+      </form>
+      <p id="errorBox" class="error" style="display:none;"></p>
+    </div>
+  </main>
+
+  <script>
+    const SUPABASE_URL = "https://hhkxmuxcmjzvpjvctgqk.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhoa3htdXhjbWp6dnBqdmN0Z3FrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczNTIzMjksImV4cCI6MjEwMjkyODMyOX0.ZnC7cGeydW2DDNZtwn1gUownpI2gWm1U2m2s_KQmXw0";
+
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const params = new URLSearchParams(window.location.search);
+    const recipeId = params.get("id");
+
+    const form = document.getElementById("recipeForm");
+    const errorBox = document.getElementById("errorBox");
+    const saveBtn = document.getElementById("saveBtn");
+    const ingredientRows = document.getElementById("ingredientRows");
+    const stepRows = document.getElementById("stepRows");
+
+    async function requireSession() {
+      const { data: { session }, error } = await sb.auth.getSession();
+      if (error || !session) {
+        window.location.href = "login.html";
+        throw new Error("Session expired - redirecting to sign in.");
+      }
+      return session;
+    }
+
+    function addIngredientRow(value = {}) {
+      const row = document.createElement("div");
+      row.className = "rc-row";
+      row.innerHTML = `
+        <input type="text" placeholder="Qty" class="ing-qty" style="flex:0 0 15%;" value="${value.quantity ? escapeAttr(value.quantity) : ""}">
+        <input type="text" placeholder="Unit" class="ing-unit" style="flex:0 0 20%;" value="${value.unit ? escapeAttr(value.unit) : ""}">
+        <input type="text" placeholder="Ingredient" class="ing-name" style="flex:1;" value="${value.name ? escapeAttr(value.name) : ""}">
+        <button type="button" class="rc-row-remove" title="Remove">×</button>
+      `;
+      row.querySelector(".rc-row-remove").addEventListener("click", () => row.remove());
+      ingredientRows.appendChild(row);
+    }
+
+    function addStepRow(value = "") {
+      const row = document.createElement("div");
+      row.className = "rc-row";
+      row.innerHTML = `
+        <textarea placeholder="Step" class="step-text" rows="2" style="flex:1;">${escapeHtml(value)}</textarea>
+        <button type="button" class="rc-row-remove" title="Remove">×</button>
+      `;
+      row.querySelector(".rc-row-remove").addEventListener("click", () => row.remove());
+      stepRows.appendChild(row);
+    }
+
+    function escapeHtml(s) {
+      const div = document.createElement("div");
+      div.textContent = s || "";
+      return div.innerHTML;
+    }
+
+    function escapeAttr(s) {
+      return escapeHtml(s).replace(/"/g, "&quot;");
+    }
+
+    document.getElementById("addIngredientBtn").addEventListener("click", () => addIngredientRow());
+    document.getElementById("addStepBtn").addEventListener("click", () => addStepRow());
+
+    function collectIngredients() {
+      return Array.from(ingredientRows.querySelectorAll(".rc-row")).map(row => ({
+        quantity: row.querySelector(".ing-qty").value.trim(),
+        unit: row.querySelector(".ing-unit").value.trim(),
+        name: row.querySelector(".ing-name").value.trim(),
+      })).filter(i => i.name || i.quantity || i.unit);
+    }
+
+    function collectSteps() {
+      return Array.from(stepRows.querySelectorAll(".rc-row"))
+        .map(row => row.querySelector(".step-text").value.trim())
+        .filter(s => s);
+    }
+
+    async function findOrCreateTags(userId, names) {
+      const tagIds = [];
+      for (const rawName of names) {
+        const name = rawName.trim();
+        if (!name) continue;
+        const { data: existing } = await sb.from("tags").select("id").eq("user_id", userId).eq("name", name).maybeSingle();
+        if (existing) {
+          tagIds.push(existing.id);
+        } else {
+          const { data: created, error } = await sb.from("tags").insert({ user_id: userId, name }).select("id").single();
+          if (!error) tagIds.push(created.id);
+        }
+      }
+      return tagIds;
+    }
+
+    async function loadExisting(userId) {
+      const { data: recipe, error } = await sb.from("recipes").select("*").eq("id", recipeId).eq("user_id", userId).single();
+      if (error || !recipe) {
+        errorBox.textContent = "Recipe not found.";
+        errorBox.style.display = "block";
+        return;
+      }
+
+      document.getElementById("formTitle").textContent = "Edit recipe";
+      document.getElementById("title").value = recipe.title || "";
+      document.getElementById("description").value = recipe.description || "";
+      document.getElementById("prep_minutes").value = recipe.prep_minutes || "";
+      document.getElementById("cook_minutes").value = recipe.cook_minutes || "";
+      document.getElementById("servings").value = recipe.servings || "";
+      document.getElementById("source_name").value = recipe.source_name || "";
+      document.getElementById("source_url").value = recipe.source_url || "";
+      document.getElementById("notes").value = recipe.notes || "";
+
+      (recipe.ingredients || []).forEach(i => addIngredientRow(i));
+      (recipe.instructions || []).forEach(s => addStepRow(s));
+      if ((recipe.ingredients || []).length === 0) addIngredientRow();
+      if ((recipe.instructions || []).length === 0) addStepRow();
+
+      const { data: recipeTags } = await sb.from("recipe_tags").select("tag_id, tags(name)").eq("recipe_id", recipeId);
+      if (recipeTags && recipeTags.length) {
+        document.getElementById("tags").value = recipeTags.map(rt => rt.tags?.name).filter(Boolean).join(", ");
+      }
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errorBox.style.display = "none";
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Saving…";
+
+      const session = await requireSession();
+      const userId = session.user.id;
+
+      const payload = {
+        user_id: userId,
+        title: document.getElementById("title").value.trim(),
+        description: document.getElementById("description").value.trim() || null,
+        prep_minutes: parseInt(document.getElementById("prep_minutes").value, 10) || null,
+        cook_minutes: parseInt(document.getElementById("cook_minutes").value, 10) || null,
+        servings: document.getElementById("servings").value.trim() || null,
+        source_name: document.getElementById("source_name").value.trim() || null,
+        source_url: document.getElementById("source_url").value.trim() || null,
+        ingredients: collectIngredients(),
+        instructions: collectSteps(),
+        notes: document.getElementById("notes").value.trim() || null,
+      };
+
+      let savedId = recipeId;
+      let saveError;
+
+      if (recipeId) {
+        const { error } = await sb.from("recipes").update(payload).eq("id", recipeId).eq("user_id", userId);
+        saveError = error;
+      } else {
+        const { data, error } = await sb.from("recipes").insert(payload).select("id").single();
+        saveError = error;
+        if (data) savedId = data.id;
+      }
+
+      if (saveError) {
+        errorBox.textContent = saveError.message;
+        errorBox.style.display = "block";
+        saveBtn.disabled = false;
+        saveBtn.textContent = "Save recipe";
+        return;
+      }
+
+      const tagNames = document.getElementById("tags").value.split(",").map(t => t.trim()).filter(Boolean);
+      const tagIds = await findOrCreateTags(userId, tagNames);
+
+      await sb.from("recipe_tags").delete().eq("recipe_id", savedId);
+      if (tagIds.length) {
+        await sb.from("recipe_tags").insert(tagIds.map(tag_id => ({ recipe_id: savedId, tag_id })));
+      }
+
+      window.location.href = `recipe.html?id=${savedId}`;
+    });
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      try {
+        await requireSession();
+      } catch {
+        return;
+      }
+
+      if (recipeId) {
+        await loadExisting((await sb.auth.getSession()).data.session.user.id);
+      } else {
+        addIngredientRow();
+        addStepRow();
+      }
+    });
+  </script>
+</body>
+</html>

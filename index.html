@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recipes</title>
+  <link rel="stylesheet" href="recipes.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <header>
+    <h1>🍲 Recipes</h1>
+    <p>Your personal recipe box.</p>
+    <p><a href="login.html" id="entryLink">Sign in</a></p>
+  </header>
+  <main>
+    <div class="card">
+      <p>Save recipes from anywhere, organize them with tags, and find them
+      again fast — ingredients, steps, timing, and notes, all in one place.</p>
+    </div>
+  </main>
+
+  <script>
+    const SUPABASE_URL = "https://hhkxmuxcmjzvpjvctgqk.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhoa3htdXhjbWp6dnBqdmN0Z3FrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczNTIzMjksImV4cCI6MjEwMjkyODMyOX0.ZnC7cGeydW2DDNZtwn1gUownpI2gWm1U2m2s_KQmXw0";
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const { data: { session } } = await sb.auth.getSession();
+
+      if (session) {
+        const link = document.getElementById("entryLink");
+        link.textContent = "Go to your recipes";
+        link.href = "app.html";
+      }
+    });
+  </script>
+</body>
+</html>

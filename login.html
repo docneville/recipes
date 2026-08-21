@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recipes — Sign in</title>
+  <link rel="stylesheet" href="recipes.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <header>
+    <h1>🍲 Recipes</h1>
+    <p id="modeLabel">Sign in</p>
+  </header>
+  <main>
+    <div class="card">
+      <form id="authForm">
+        <label for="email">Email</label>
+        <input type="email" id="email" required autocomplete="username">
+        <label for="password">Password</label>
+        <input type="password" id="password" required autocomplete="current-password">
+        <button type="submit" id="submitBtn">Sign in</button>
+      </form>
+      <p id="errorBox" class="error" style="display:none;"></p>
+      <p style="text-align:center; margin-top: 1rem;">
+        <a href="#" id="toggleModeLink">Need an account? Sign up</a>
+      </p>
+    </div>
+  </main>
+
+  <script>
+    const SUPABASE_URL = "https://hhkxmuxcmjzvpjvctgqk.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhoa3htdXhjbWp6dnBqdmN0Z3FrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczNTIzMjksImV4cCI6MjEwMjkyODMyOX0.ZnC7cGeydW2DDNZtwn1gUownpI2gWm1U2m2s_KQmXw0";
+
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const form = document.getElementById("authForm");
+    const errorBox = document.getElementById("errorBox");
+    const submitBtn = document.getElementById("submitBtn");
+    const modeLabel = document.getElementById("modeLabel");
+    const toggleModeLink = document.getElementById("toggleModeLink");
+
+    let mode = "signin"; // or "signup"
+
+    function showError(msg) {
+      errorBox.textContent = msg;
+      errorBox.style.display = "block";
+    }
+
+    toggleModeLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      mode = mode === "signin" ? "signup" : "signin";
+      if (mode === "signup") {
+        modeLabel.textContent = "Create an account";
+        submitBtn.textContent = "Sign up";
+        toggleModeLink.textContent = "Already have an account? Sign in";
+      } else {
+        modeLabel.textContent = "Sign in";
+        submitBtn.textContent = "Sign in";
+        toggleModeLink.textContent = "Need an account? Sign up";
+      }
+      errorBox.style.display = "none";
+    });
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      const { data: { session } } = await sb.auth.getSession();
+      if (session) {
+        window.location.href = "app.html";
+      }
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errorBox.style.display = "none";
+      submitBtn.disabled = true;
+
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+
+      if (mode === "signup") {
+        submitBtn.textContent = "Signing up…";
+        const { error } = await sb.auth.signUp({ email, password });
+        if (error) {
+          showError(error.message);
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Sign up";
+          return;
+        }
+
+        const { data: { session } } = await sb.auth.getSession();
+        if (!session) {
+          showError("Check your email to confirm your account, then sign in.");
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Sign up";
+          return;
+        }
+      } else {
+        submitBtn.textContent = "Signing in…";
+        const { error } = await sb.auth.signInWithPassword({ email, password });
+        if (error) {
+          showError(error.message);
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Sign in";
+          return;
+        }
+      }
+
+      window.location.href = "app.html";
+    });
+  </script>
+</body>
+</html>

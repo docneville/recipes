@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recipes — Profile</title>
+  <link rel="stylesheet" href="recipes.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <header>
+    <h1>🍲 Recipes</h1>
+    <nav>
+      <a href="app.html">Your recipes</a>
+    </nav>
+  </header>
+  <main>
+    <div class="card">
+      <h2>Profile</h2>
+      <form id="profileForm">
+        <label for="first_name">First name</label>
+        <input type="text" id="first_name">
+        <label for="last_name">Last name</label>
+        <input type="text" id="last_name">
+        <label>Email</label>
+        <input type="text" id="email" disabled>
+        <button type="submit" id="saveBtn">Save</button>
+      </form>
+      <p id="statusBox" style="display:none;"></p>
+    </div>
+
+    <div class="card">
+      <button type="button" id="signOutBtn" class="rc-btn-secondary">Sign out</button>
+    </div>
+  </main>
+
+  <script>
+    const SUPABASE_URL = "https://hhkxmuxcmjzvpjvctgqk.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhoa3htdXhjbWp6dnBqdmN0Z3FrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczNTIzMjksImV4cCI6MjEwMjkyODMyOX0.ZnC7cGeydW2DDNZtwn1gUownpI2gWm1U2m2s_KQmXw0";
+
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const form = document.getElementById("profileForm");
+    const statusBox = document.getElementById("statusBox");
+    const saveBtn = document.getElementById("saveBtn");
+    const signOutBtn = document.getElementById("signOutBtn");
+
+    async function requireSession() {
+      const { data: { session }, error } = await sb.auth.getSession();
+      if (error || !session) {
+        window.location.href = "login.html";
+        throw new Error("Session expired - redirecting to sign in.");
+      }
+      return session;
+    }
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      let session;
+      try {
+        session = await requireSession();
+      } catch {
+        return;
+      }
+
+      document.getElementById("email").value = session.user.email;
+
+      const { data: profile } = await sb.from("profiles").select("first_name, last_name").eq("id", session.user.id).maybeSingle();
+      if (profile) {
+        document.getElementById("first_name").value = profile.first_name || "";
+        document.getElementById("last_name").value = profile.last_name || "";
+      }
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Saving…";
+      statusBox.style.display = "none";
+
+      const session = await requireSession();
+      const patch = {
+        id: session.user.id,
+        first_name: document.getElementById("first_name").value.trim() || null,
+        last_name: document.getElementById("last_name").value.trim() || null,
+      };
+
+      const { error } = await sb.from("profiles").upsert(patch);
+
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Save";
+      statusBox.style.display = "block";
+      statusBox.className = error ? "error" : "";
+      statusBox.textContent = error ? error.message : "Saved.";
+    });
+
+    signOutBtn.addEventListener("click", async () => {
+      await sb.auth.signOut();
+      window.location.href = "login.html";
+    });
+  </script>
+</body>
+</html>

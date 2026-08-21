@@ -1,0 +1,308 @@
+:root {
+  --rc-bg: #faf8f3;
+  --rc-text: #2b2a25;
+  --rc-accent: #7a8c4a;
+  --rc-accent-dark: #5f7038;
+  --rc-muted: #8a8474;
+  --rc-border: #e2ddd0;
+  --rc-danger: #b5482f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--rc-bg);
+  color: var(--rc-text);
+}
+
+header {
+  padding: 2rem 1.5rem 1rem;
+  text-align: center;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  letter-spacing: 0.02em;
+}
+
+header p {
+  color: var(--rc-muted);
+  margin: 0.25rem 0 0;
+}
+
+header nav {
+  margin-top: 0.5rem;
+}
+
+header nav a {
+  color: var(--rc-accent-dark);
+  text-decoration: none;
+  margin: 0 0.5rem;
+  font-size: 0.9rem;
+}
+
+header nav a:hover {
+  text-decoration: underline;
+}
+
+main {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.card {
+  border: 1px solid var(--rc-border);
+  border-radius: 12px;
+  padding: 1.25rem;
+  background: #fff;
+  margin-bottom: 1rem;
+}
+
+.card h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.25rem;
+}
+
+label {
+  display: block;
+  margin: 0.75rem 0 0.25rem;
+  font-size: 0.9rem;
+  color: var(--rc-muted);
+}
+
+input, textarea, select {
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--rc-border);
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: inherit;
+}
+
+textarea {
+  resize: vertical;
+}
+
+button {
+  margin-top: 1rem;
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: 8px;
+  background: var(--rc-accent);
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--rc-accent-dark);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+button.rc-btn-secondary {
+  background: #fff;
+  color: var(--rc-text);
+  border: 1px solid var(--rc-border);
+}
+
+button.rc-btn-secondary:hover {
+  background: var(--rc-bg);
+}
+
+button.rc-btn-danger {
+  background: var(--rc-danger);
+}
+
+button.rc-btn-danger:hover {
+  background: #953a25;
+}
+
+.rc-btn-primary {
+  display: inline-block;
+  padding: 0.85rem 2.25rem;
+  border-radius: 10px;
+  background: var(--rc-accent);
+  color: #fff;
+  text-decoration: none;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.rc-btn-primary:hover {
+  opacity: 0.9;
+}
+
+.error {
+  color: var(--rc-danger);
+  font-size: 0.9rem;
+}
+
+/* Recipe list */
+.rc-toolbar {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.rc-toolbar input[type="search"] {
+  flex: 1;
+  min-width: 160px;
+}
+
+.rc-tag-filter {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.rc-tag-chip {
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--rc-border);
+  background: #fff;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: var(--rc-text);
+}
+
+.rc-tag-chip.active {
+  background: var(--rc-accent);
+  color: #fff;
+  border-color: var(--rc-accent);
+}
+
+.rc-recipe-card {
+  display: block;
+  padding: 1rem;
+  border: 1px solid var(--rc-border);
+  border-radius: 12px;
+  background: #fff;
+  margin-bottom: 0.75rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.rc-recipe-card:hover {
+  border-color: var(--rc-accent);
+}
+
+.rc-recipe-card h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1.1rem;
+}
+
+.rc-recipe-meta {
+  color: var(--rc-muted);
+  font-size: 0.85rem;
+}
+
+.rc-recipe-tags {
+  margin-top: 0.5rem;
+}
+
+.rc-recipe-tags span {
+  display: inline-block;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: var(--rc-bg);
+  border: 1px solid var(--rc-border);
+  font-size: 0.75rem;
+  color: var(--rc-muted);
+  margin: 0.15rem 0.25rem 0.15rem 0;
+}
+
+/* Recipe detail */
+.rc-detail-meta {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  color: var(--rc-muted);
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.rc-detail-meta strong {
+  color: var(--rc-text);
+}
+
+ul.rc-ingredients {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+ul.rc-ingredients li {
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--rc-border);
+}
+
+ul.rc-ingredients li:last-child {
+  border-bottom: none;
+}
+
+ol.rc-steps {
+  padding-left: 1.25rem;
+}
+
+ol.rc-steps li {
+  margin-bottom: 0.75rem;
+  line-height: 1.5;
+}
+
+/* Dynamic list rows in the add/edit form */
+.rc-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  align-items: center;
+}
+
+.rc-row input, .rc-row textarea {
+  margin: 0;
+}
+
+.rc-row-remove {
+  background: none;
+  border: none;
+  color: var(--rc-muted);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0 0.4rem;
+  margin: 0;
+  line-height: 1;
+}
+
+.rc-row-remove:hover {
+  color: var(--rc-danger);
+  background: none;
+}
+
+.rc-add-row-btn {
+  background: none;
+  border: 1px dashed var(--rc-border);
+  color: var(--rc-accent-dark);
+  width: 100%;
+}
+
+.rc-add-row-btn:hover {
+  background: var(--rc-bg);
+}
+
+.rc-empty {
+  color: var(--rc-muted);
+  text-align: center;
+  padding: 2rem 0;
+}

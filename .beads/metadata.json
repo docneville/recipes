@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "recipes",
+  "project_id": "ac1f50db-a47b-48da-9ce1-17b68fa4517c"
+}

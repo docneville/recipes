@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recipes</title>
+  <link rel="stylesheet" href="recipes.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <header>
+    <h1>🍲 Recipes</h1>
+    <nav>
+      <a href="profile.html">Profile</a>
+      <a href="#" id="signOutLink">Sign out</a>
+    </nav>
+  </header>
+  <main>
+    <div style="text-align:center; margin-bottom: 1rem;">
+      <a href="add-recipe.html" class="rc-btn-primary">+ Add recipe</a>
+    </div>
+
+    <div class="rc-toolbar">
+      <input type="search" id="searchInput" placeholder="Search recipes…">
+    </div>
+
+    <div class="rc-tag-filter" id="tagFilter"></div>
+
+    <div id="recipeList"></div>
+    <p id="emptyState" class="rc-empty" style="display:none;">No recipes yet — add your first one.</p>
+  </main>
+
+  <script>
+    const SUPABASE_URL = "https://hhkxmuxcmjzvpjvctgqk.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhoa3htdXhjbWp6dnBqdmN0Z3FrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczNTIzMjksImV4cCI6MjEwMjkyODMyOX0.ZnC7cGeydW2DDNZtwn1gUownpI2gWm1U2m2s_KQmXw0";
+
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const searchInput = document.getElementById("searchInput");
+    const tagFilter = document.getElementById("tagFilter");
+    const recipeList = document.getElementById("recipeList");
+    const emptyState = document.getElementById("emptyState");
+    const signOutLink = document.getElementById("signOutLink");
+
+    let allRecipes = [];
+    let allTags = [];
+    let activeTagId = null;
+
+    async function requireSession() {
+      const { data: { session }, error } = await sb.auth.getSession();
+      if (error || !session) {
+        window.location.href = "login.html";
+        throw new Error("Session expired - redirecting to sign in.");
+      }
+      return session;
+    }
+
+    function render() {
+      const query = searchInput.value.trim().toLowerCase();
+      const filtered = allRecipes.filter(r => {
+        const matchesQuery = !query || r.title.toLowerCase().includes(query);
+        const matchesTag = !activeTagId || r.tagIds.has(activeTagId);
+        return matchesQuery && matchesTag;
+      });
+
+      if (filtered.length === 0) {
+        recipeList.innerHTML = "";
+        emptyState.style.display = "block";
+        emptyState.textContent = allRecipes.length === 0
+          ? "No recipes yet — add your first one."
+          : "No recipes match your search.";
+        return;
+      }
+
+      emptyState.style.display = "none";
+      recipeList.innerHTML = filtered.map(r => {
+        const metaParts = [];
+        if (r.prep_minutes || r.cook_minutes) {
+          const total = (r.prep_minutes || 0) + (r.cook_minutes || 0);
+          metaParts.push(`${total} min`);
+        }
+        if (r.servings) metaParts.push(`Serves ${r.servings}`);
+
+        const tagsHtml = r.tagNames.length
+          ? `<div class="rc-recipe-tags">${r.tagNames.map(t => `<span>${escapeHtml(t)}</span>`).join("")}</div>`
+          : "";
+
+        return `
+          <a class="rc-recipe-card" href="recipe.html?id=${r.id}">
+            <h3>${escapeHtml(r.title)}</h3>
+            ${metaParts.length ? `<div class="rc-recipe-meta">${metaParts.join(" · ")}</div>` : ""}
+            ${tagsHtml}
+          </a>
+        `;
+      }).join("");
+    }
+
+    function escapeHtml(s) {
+      const div = document.createElement("div");
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    function renderTagFilter() {
+      if (allTags.length === 0) {
+        tagFilter.innerHTML = "";
+        return;
+      }
+      tagFilter.innerHTML = allTags.map(t => `
+        <button type="button" class="rc-tag-chip ${t.id === activeTagId ? "active" : ""}" data-tag-id="${t.id}">${escapeHtml(t.name)}</button>
+      `).join("");
+
+      tagFilter.querySelectorAll(".rc-tag-chip").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const id = btn.dataset.tagId;
+          activeTagId = activeTagId === id ? null : id;
+          renderTagFilter();
+          render();
+        });
+      });
+    }
+
+    async function loadData(userId) {
+      const [{ data: recipes, error: rErr }, { data: tags, error: tErr }, { data: recipeTags, error: rtErr }] = await Promise.all([
+        sb.from("recipes").select("id, title, prep_minutes, cook_minutes, servings, created_at").eq("user_id", userId).order("created_at", { ascending: false }),
+        sb.from("tags").select("id, name").eq("user_id", userId).order("name", { ascending: true }),
+        sb.from("recipe_tags").select("recipe_id, tag_id"),
+      ]);
+
+      if (rErr || tErr || rtErr) {
+        console.error(rErr || tErr || rtErr);
+        recipeList.innerHTML = `<p class="error">Failed to load recipes.</p>`;
+        return;
+      }
+
+      allTags = tags || [];
+
+      const tagsByRecipe = {};
+      (recipeTags || []).forEach(rt => {
+        if (!tagsByRecipe[rt.recipe_id]) tagsByRecipe[rt.recipe_id] = [];
+        tagsByRecipe[rt.recipe_id].push(rt.tag_id);
+      });
+      const tagNameById = {};
+      allTags.forEach(t => { tagNameById[t.id] = t.name; });
+
+      allRecipes = (recipes || []).map(r => {
+        const tagIds = tagsByRecipe[r.id] || [];
+        return {
+          ...r,
+          tagIds: new Set(tagIds),
+          tagNames: tagIds.map(id => tagNameById[id]).filter(Boolean),
+        };
+      });
+
+      renderTagFilter();
+      render();
+    }
+
+    searchInput.addEventListener("input", render);
+
+    signOutLink.addEventListener("click", async (e) => {
+      e.preventDefault();
+      await sb.auth.signOut();
+      window.location.href = "login.html";
+    });
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      let session;
+      try {
+        session = await requireSession();
+      } catch {
+        return;
+      }
+      await loadData(session.user.id);
+    });
+  </script>
+</body>
+</html>

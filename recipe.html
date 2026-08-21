@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recipes</title>
+  <link rel="stylesheet" href="recipes.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <header>
+    <h1>🍲 Recipes</h1>
+    <nav>
+      <a href="app.html">Your recipes</a>
+    </nav>
+  </header>
+  <main>
+    <div class="card" id="recipeCard" style="display:none;">
+      <h2 id="recipeTitle"></h2>
+      <p id="recipeDescription"></p>
+      <div class="rc-detail-meta" id="recipeMeta"></div>
+      <div class="rc-recipe-tags" id="recipeTags"></div>
+
+      <h3>Ingredients</h3>
+      <ul class="rc-ingredients" id="ingredientsList"></ul>
+
+      <h3>Steps</h3>
+      <ol class="rc-steps" id="stepsList"></ol>
+
+      <div id="notesSection" style="display:none;">
+        <h3>Notes</h3>
+        <p id="recipeNotes"></p>
+      </div>
+
+      <p id="sourceLine" style="display:none; color: var(--rc-muted); font-size: 0.85rem;"></p>
+
+      <div style="display:flex; gap:0.5rem; margin-top: 1rem;">
+        <a id="editLink" class="rc-btn-primary" href="#">Edit</a>
+        <button type="button" id="deleteBtn" class="rc-btn-danger">Delete</button>
+      </div>
+    </div>
+    <p id="errorBox" class="error" style="display:none;"></p>
+  </main>
+
+  <script>
+    const SUPABASE_URL = "https://hhkxmuxcmjzvpjvctgqk.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhoa3htdXhjbWp6dnBqdmN0Z3FrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczNTIzMjksImV4cCI6MjEwMjkyODMyOX0.ZnC7cGeydW2DDNZtwn1gUownpI2gWm1U2m2s_KQmXw0";
+
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const params = new URLSearchParams(window.location.search);
+    const recipeId = params.get("id");
+
+    const errorBox = document.getElementById("errorBox");
+    const recipeCard = document.getElementById("recipeCard");
+
+    function escapeHtml(s) {
+      const div = document.createElement("div");
+      div.textContent = s || "";
+      return div.innerHTML;
+    }
+
+    function showError(msg) {
+      errorBox.textContent = msg;
+      errorBox.style.display = "block";
+    }
+
+    async function requireSession() {
+      const { data: { session }, error } = await sb.auth.getSession();
+      if (error || !session) {
+        window.location.href = "login.html";
+        throw new Error("Session expired - redirecting to sign in.");
+      }
+      return session;
+    }
+
+    async function loadRecipe(userId) {
+      if (!recipeId) {
+        showError("No recipe specified.");
+        return;
+      }
+
+      const { data: recipe, error } = await sb.from("recipes").select("*").eq("id", recipeId).eq("user_id", userId).single();
+      if (error || !recipe) {
+        showError("Recipe not found.");
+        return;
+      }
+
+      document.getElementById("recipeTitle").textContent = recipe.title;
+      document.getElementById("recipeDescription").textContent = recipe.description || "";
+      document.getElementById("recipeDescription").style.display = recipe.description ? "block" : "none";
+
+      const metaParts = [];
+      if (recipe.prep_minutes) metaParts.push(`<span><strong>${recipe.prep_minutes}</strong> min prep</span>`);
+      if (recipe.cook_minutes) metaParts.push(`<span><strong>${recipe.cook_minutes}</strong> min cook</span>`);
+      if (recipe.servings) metaParts.push(`<span><strong>${escapeHtml(recipe.servings)}</strong> servings</span>`);
+      document.getElementById("recipeMeta").innerHTML = metaParts.join("");
+
+      const ingredientsList = document.getElementById("ingredientsList");
+      ingredientsList.innerHTML = (recipe.ingredients || []).map(i => {
+        const parts = [i.quantity, i.unit, i.name].filter(Boolean);
+        return `<li>${escapeHtml(parts.join(" "))}</li>`;
+      }).join("") || "<li>No ingredients listed.</li>";
+
+      const stepsList = document.getElementById("stepsList");
+      stepsList.innerHTML = (recipe.instructions || []).map(s => `<li>${escapeHtml(s)}</li>`).join("") || "<li>No steps listed.</li>";
+
+      if (recipe.notes) {
+        document.getElementById("notesSection").style.display = "block";
+        document.getElementById("recipeNotes").textContent = recipe.notes;
+      }
+
+      if (recipe.source_name || recipe.source_url) {
+        const sourceLine = document.getElementById("sourceLine");
+        sourceLine.style.display = "block";
+        if (recipe.source_url) {
+          sourceLine.innerHTML = `Source: <a href="${escapeHtml(recipe.source_url)}" target="_blank" rel="noopener">${escapeHtml(recipe.source_name || recipe.source_url)}</a>`;
+        } else {
+          sourceLine.textContent = `Source: ${recipe.source_name}`;
+        }
+      }
+
+      document.getElementById("editLink").href = `add-recipe.html?id=${recipe.id}`;
+
+      const { data: recipeTags } = await sb.from("recipe_tags").select("tags(name)").eq("recipe_id", recipe.id);
+      const tagNames = (recipeTags || []).map(rt => rt.tags?.name).filter(Boolean);
+      document.getElementById("recipeTags").innerHTML = tagNames.map(t => `<span>${escapeHtml(t)}</span>`).join("");
+
+      recipeCard.style.display = "block";
+    }
+
+    document.getElementById("deleteBtn").addEventListener("click", async () => {
+      if (!confirm("Delete this recipe? This can't be undone.")) return;
+      const session = await requireSession();
+      const { error } = await sb.from("recipes").delete().eq("id", recipeId).eq("user_id", session.user.id);
+      if (error) {
+        showError(error.message);
+        return;
+      }
+      window.location.href = "app.html";
+    });
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      let session;
+      try {
+        session = await requireSession();
+      } catch {
+        return;
+      }
+      await loadRecipe(session.user.id);
+    });
+  </script>
+</body>
+</html>
