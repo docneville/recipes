@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Recipes — Profile</title>
+  <title>Morse Recipes — Profile</title>
   <link rel="stylesheet" href="recipes.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <header>
-    <h1>🍲 Recipes</h1>
+    <h1>🍲 Morse Recipes</h1>
     <nav>
       <a href="app.html">Your recipes</a>
     </nav>
@@ -48,7 +48,7 @@
     async function requireSession() {
       const { data: { session }, error } = await sb.auth.getSession();
       if (error || !session) {
-        window.location.href = "login.html";
+        window.location.href = "index.html";
         throw new Error("Session expired - redirecting to sign in.");
       }
       return session;
@@ -95,7 +95,7 @@
 
     signOutBtn.addEventListener("click", async () => {
       await sb.auth.signOut();
-      window.location.href = "login.html";
+      window.location.href = "index.html";
     });
   </script>
 </body>
