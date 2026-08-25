@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recipes — Import from photo</title>
+  <link rel="stylesheet" href="recipes.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <header>
+    <h1>🍲 Recipes</h1>
+    <nav>
+      <a href="app.html">Your recipes</a>
+    </nav>
+  </header>
+  <main>
+    <div class="card">
+      <h2>Import from photo</h2>
+      <p style="color: var(--rc-muted); font-size: 0.9rem;">
+        Upload one or more photos of a recipe — a cookbook page, a handwritten card, or a
+        series of screenshots (e.g. a Pinterest pin or a blog post). Claude will read them and
+        pull out a clean, ad-free recipe for you to review before saving.
+      </p>
+      <form id="importForm">
+        <label for="files">Photo(s)</label>
+        <input type="file" id="files" accept="image/*" multiple required>
+        <p style="color: var(--rc-muted); margin: 0.25rem 0 0; font-size: 0.85rem;">
+          Selecting more than one sends them together, as parts of the same recipe — e.g. one
+          photo of the ingredients and another of the steps.
+        </p>
+        <button type="submit" id="importBtn">Extract recipe</button>
+      </form>
+      <p id="errorBox" class="error" style="display:none;"></p>
+      <p id="statusBox" style="display:none; color: var(--rc-muted);"></p>
+    </div>
+  </main>
+
+  <script>
+    const SUPABASE_URL = "https://hhkxmuxcmjzvpjvctgqk.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhoa3htdXhjbWp6dnBqdmN0Z3FrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczNTIzMjksImV4cCI6MjEwMjkyODMyOX0.ZnC7cGeydW2DDNZtwn1gUownpI2gWm1U2m2s_KQmXw0";
+
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const form = document.getElementById("importForm");
+    const errorBox = document.getElementById("errorBox");
+    const statusBox = document.getElementById("statusBox");
+    const importBtn = document.getElementById("importBtn");
+
+    function showError(msg) {
+      errorBox.textContent = msg;
+      errorBox.style.display = "block";
+    }
+
+    function showStatus(msg) {
+      statusBox.textContent = msg;
+      statusBox.style.display = "block";
+    }
+
+    async function requireSession() {
+      const { data: { session }, error } = await sb.auth.getSession();
+      if (error || !session) {
+        window.location.href = "login.html";
+        throw new Error("Session expired - redirecting to sign in.");
+      }
+      return session;
+    }
+
+    // Same resize as Houstory's upload.html: caps the long edge at
+    // Claude's effective vision resolution so a full-res phone photo
+    // doesn't risk tripping the edge function's resource limit.
+    async function resizeImageForUpload(file, maxDimension = 1568, quality = 0.85) {
+      if (!file.type.startsWith("image/") || file.type === "image/gif") return file;
+
+      const imgBitmap = await createImageBitmap(file);
+      const scale = Math.min(1, maxDimension / Math.max(imgBitmap.width, imgBitmap.height));
+      if (scale === 1) return file;
+
+      const targetW = Math.round(imgBitmap.width * scale);
+      const targetH = Math.round(imgBitmap.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = targetW;
+      canvas.height = targetH;
+      canvas.getContext("2d").drawImage(imgBitmap, 0, 0, targetW, targetH);
+
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", quality));
+      if (!blob) return file;
+
+      return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+    }
+
+    async function uploadOneFile(file, userId) {
+      const resized = await resizeImageForUpload(file);
+      const storagePath = `${userId}/imports/${crypto.randomUUID()}-${resized.name}`;
+      const { error } = await sb.storage.from("recipe-photos").upload(storagePath, resized, { contentType: resized.type });
+      if (error) throw new Error(`Upload failed: ${error.message}`);
+      return storagePath;
+    }
+
+    // Raw fetch rather than sb.functions.invoke() - Houstory's analyze-media
+    // hit unreliable "Failed to send a request" errors with invoke() once a
+    // call took a few seconds (image download + Claude call); plain fetch
+    // with the same headers didn't have that problem.
+    async function callExtract(storagePaths) {
+      const session = await requireSession();
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/extract-recipe`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${session.access_token}`,
+          "apikey": SUPABASE_ANON_KEY,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ storage_paths: storagePaths }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || `HTTP ${res.status}`);
+      return result;
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errorBox.style.display = "none";
+      statusBox.style.display = "none";
+      importBtn.disabled = true;
+
+      let user;
+      try {
+        user = (await requireSession()).user;
+      } catch {
+        return;
+      }
+
+      const files = Array.from(document.getElementById("files").files);
+
+      importBtn.textContent = `Uploading ${files.length} photo(s)…`;
+      let storagePaths;
+      try {
+        storagePaths = [];
+        for (const file of files) storagePaths.push(await uploadOneFile(file, user.id));
+      } catch (uploadErr) {
+        showError(uploadErr.message);
+        importBtn.disabled = false;
+        importBtn.textContent = "Extract recipe";
+        return;
+      }
+
+      importBtn.textContent = "Reading with Claude…";
+      showStatus("This can take a little while for several photos.");
+
+      let result;
+      try {
+        result = await callExtract(storagePaths);
+      } catch (extractErr) {
+        showError(extractErr.message);
+        importBtn.disabled = false;
+        importBtn.textContent = "Extract recipe";
+        statusBox.style.display = "none";
+        return;
+      }
+
+      sessionStorage.setItem("recipeImportDraft", JSON.stringify({
+        recipe: result.recipe,
+        sourcePhotoPaths: storagePaths,
+      }));
+
+      window.location.href = "add-recipe.html?import=1";
+    });
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      try {
+        await requireSession();
+      } catch {
+        return;
+      }
+    });
+  </script>
+</body>
+</html>

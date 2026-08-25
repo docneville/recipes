@@ -32,6 +32,11 @@
         <p id="recipeNotes"></p>
       </div>
 
+      <div id="sourcePhotosSection" style="display:none;">
+        <h3>Imported from</h3>
+        <div id="sourcePhotos" style="display:flex; gap:0.5rem; flex-wrap:wrap;"></div>
+      </div>
+
       <p id="sourceLine" style="display:none; color: var(--rc-muted); font-size: 0.85rem;"></p>
 
       <div style="display:flex; gap:0.5rem; margin-top: 1rem;">
@@ -108,6 +113,19 @@
       if (recipe.notes) {
         document.getElementById("notesSection").style.display = "block";
         document.getElementById("recipeNotes").textContent = recipe.notes;
+      }
+
+      if (recipe.source_photo_paths && recipe.source_photo_paths.length > 0) {
+        const signedUrls = await Promise.all(
+          recipe.source_photo_paths.map(path => sb.storage.from("recipe-photos").createSignedUrl(path, 3600))
+        );
+        const thumbsHtml = signedUrls
+          .map(({ data }) => data ? `<img src="${data.signedUrl}" alt="" style="max-width:120px; max-height:120px; border-radius:8px; object-fit:cover;">` : "")
+          .join("");
+        if (thumbsHtml) {
+          document.getElementById("sourcePhotosSection").style.display = "block";
+          document.getElementById("sourcePhotos").innerHTML = thumbsHtml;
+        }
       }
 
       if (recipe.source_name || recipe.source_url) {

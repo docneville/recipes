@@ -73,6 +73,8 @@
 
     const params = new URLSearchParams(window.location.search);
     const recipeId = params.get("id");
+    const isImport = params.get("import") === "1";
+    let importSourcePhotoPaths = [];
 
     const form = document.getElementById("recipeForm");
     const errorBox = document.getElementById("errorBox");
@@ -125,6 +127,40 @@
 
     document.getElementById("addIngredientBtn").addEventListener("click", () => addIngredientRow());
     document.getElementById("addStepBtn").addEventListener("click", () => addStepRow());
+
+    // recipes-022.2: prefill from a draft left in sessionStorage by
+    // import.html. Read once and clear immediately - otherwise navigating
+    // to "Add recipe" fresh later would keep re-applying a stale draft.
+    function applyImportDraft() {
+      const raw = sessionStorage.getItem("recipeImportDraft");
+      sessionStorage.removeItem("recipeImportDraft");
+      if (!raw) return false;
+
+      let draft;
+      try {
+        draft = JSON.parse(raw);
+      } catch {
+        return false;
+      }
+
+      const recipe = draft.recipe || {};
+      importSourcePhotoPaths = draft.sourcePhotoPaths || [];
+
+      document.getElementById("formTitle").textContent = "Review imported recipe";
+      document.getElementById("title").value = recipe.title || "";
+      document.getElementById("description").value = recipe.description || "";
+      if (recipe.prep_minutes) document.getElementById("prep_minutes").value = recipe.prep_minutes;
+      if (recipe.cook_minutes) document.getElementById("cook_minutes").value = recipe.cook_minutes;
+      document.getElementById("servings").value = recipe.servings || "";
+      document.getElementById("source_name").value = recipe.source_name || "";
+
+      (recipe.ingredients || []).forEach(i => addIngredientRow(i));
+      (recipe.instructions || []).forEach(s => addStepRow(s));
+      if ((recipe.ingredients || []).length === 0) addIngredientRow();
+      if ((recipe.instructions || []).length === 0) addStepRow();
+
+      return true;
+    }
 
     function collectIngredients() {
       return Array.from(ingredientRows.querySelectorAll(".rc-row")).map(row => ({
@@ -208,6 +244,12 @@
         notes: document.getElementById("notes").value.trim() || null,
       };
 
+      // Only set on create, from an import draft - never touched on edit,
+      // so editing a recipe never clobbers photos it already has attached.
+      if (!recipeId && importSourcePhotoPaths.length > 0) {
+        payload.source_photo_paths = importSourcePhotoPaths;
+      }
+
       let savedId = recipeId;
       let saveError;
 
@@ -248,7 +290,7 @@
 
       if (recipeId) {
         await loadExisting((await sb.auth.getSession()).data.session.user.id);
-      } else {
+      } else if (!isImport || !applyImportDraft()) {
         addIngredientRow();
         addStepRow();
       }
