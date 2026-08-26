@@ -6,13 +6,11 @@
   <title>Morse Recipes — Profile</title>
   <link rel="stylesheet" href="recipes.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="nav.js"></script>
 </head>
 <body>
   <header>
     <h1>🍲 Morse Recipes</h1>
-    <nav>
-      <a href="app.html">Your recipes</a>
-    </nav>
   </header>
   <main>
     <div class="card">
@@ -28,10 +26,6 @@
       </form>
       <p id="statusBox" style="display:none;"></p>
     </div>
-
-    <div class="card">
-      <button type="button" id="signOutBtn" class="rc-btn-secondary">Sign out</button>
-    </div>
   </main>
 
   <script>
@@ -43,7 +37,6 @@
     const form = document.getElementById("profileForm");
     const statusBox = document.getElementById("statusBox");
     const saveBtn = document.getElementById("saveBtn");
-    const signOutBtn = document.getElementById("signOutBtn");
 
     async function requireSession() {
       const { data: { session }, error } = await sb.auth.getSession();
@@ -61,6 +54,8 @@
       } catch {
         return;
       }
+
+      await RecipesNav.init({ sb, breadcrumbs: [{ label: "Home", href: "index.html" }, { label: "Profile" }] });
 
       document.getElementById("email").value = session.user.email;
 
@@ -91,11 +86,6 @@
       statusBox.style.display = "block";
       statusBox.className = error ? "error" : "";
       statusBox.textContent = error ? error.message : "Saved.";
-    });
-
-    signOutBtn.addEventListener("click", async () => {
-      await sb.auth.signOut();
-      window.location.href = "index.html";
     });
   </script>
 </body>

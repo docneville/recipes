@@ -6,6 +6,7 @@
   <title>Morse Recipes</title>
   <link rel="stylesheet" href="recipes.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="nav.js"></script>
 </head>
 <body>
   <header>
@@ -93,6 +94,8 @@
       document.getElementById("welcomeMessage").textContent = `Welcome, ${displayName}!`;
       signedOutCard.style.display = "none";
       signedInCard.style.display = "block";
+
+      await RecipesNav.init({ sb });
     });
 
     googleSignInBtn.addEventListener("click", async () => {

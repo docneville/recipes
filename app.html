@@ -6,14 +6,11 @@
   <title>Morse Recipes</title>
   <link rel="stylesheet" href="recipes.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="nav.js"></script>
 </head>
 <body>
   <header>
     <h1>🍲 Morse Recipes</h1>
-    <nav>
-      <a href="profile.html">Profile</a>
-      <a href="#" id="signOutLink">Sign out</a>
-    </nav>
   </header>
   <main>
     <div style="text-align:center; margin-bottom: 1rem; display:flex; gap:0.5rem; justify-content:center;">
@@ -41,7 +38,6 @@
     const tagFilter = document.getElementById("tagFilter");
     const recipeList = document.getElementById("recipeList");
     const emptyState = document.getElementById("emptyState");
-    const signOutLink = document.getElementById("signOutLink");
 
     let allRecipes = [];
     let allTags = [];
@@ -187,12 +183,6 @@
 
     searchInput.addEventListener("input", render);
 
-    signOutLink.addEventListener("click", async (e) => {
-      e.preventDefault();
-      await sb.auth.signOut();
-      window.location.href = "index.html";
-    });
-
     document.addEventListener("DOMContentLoaded", async () => {
       let session;
       try {
@@ -200,6 +190,7 @@
       } catch {
         return;
       }
+      await RecipesNav.init({ sb, breadcrumbs: [{ label: "Home", href: "index.html" }, { label: "Your Recipes" }] });
       await ensureProfile(session.user);
       await loadData(session.user.id);
     });
