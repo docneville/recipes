@@ -212,6 +212,21 @@ button.rc-btn-danger:hover {
   border-color: var(--rc-accent);
 }
 
+/* recipes-oey: without these, an inactive chip fell through to the
+   global button:hover { background: var(--rc-accent-dark) } - close
+   enough to --rc-accent that a stuck :hover on touch (no mouse to leave
+   with after a tap) made a just-deselected chip look like it stayed
+   green. .active:hover is explicit (rather than relying on source-order
+   specificity ties with .rc-tag-chip:hover) so it unambiguously stays
+   accent-colored even while also hovered. */
+.rc-tag-chip:hover {
+  background: var(--rc-bg);
+}
+
+.rc-tag-chip.active:hover {
+  background: var(--rc-accent);
+}
+
 .rc-recipe-card {
   display: block;
   padding: 1rem;
