@@ -14,8 +14,15 @@
   </header>
   <main>
     <div class="card" id="recipeCard" style="display:none;">
-      <h2 id="recipeTitle"></h2>
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.75rem;">
+        <h2 id="recipeTitle" style="margin:0;"></h2>
+        <button type="button" id="shareBtn" class="rc-share-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+          Share
+        </button>
+      </div>
       <p id="recipeByline" style="color: var(--rc-muted); font-size: 0.9rem;"></p>
+      <p id="shareStatus" style="display:none; color: var(--rc-muted); font-size: 0.85rem;"></p>
       <p id="recipeDescription"></p>
 
       <div class="rc-significance" id="significanceSection" style="display:none;">
@@ -43,11 +50,6 @@
       </div>
 
       <p id="sourceLine" style="display:none; color: var(--rc-muted); font-size: 0.85rem;"></p>
-
-      <div style="display:flex; gap:0.5rem; margin-top: 1rem; flex-wrap:wrap;">
-        <button type="button" id="shareBtn" class="rc-btn-secondary">Share</button>
-      </div>
-      <p id="shareStatus" style="display:none; color: var(--rc-muted); font-size: 0.85rem;"></p>
 
       <div id="ownerActions" style="display:flex; gap:0.5rem; margin-top: 1rem;">
         <a id="editLink" class="rc-btn-primary" href="#">Edit</a>

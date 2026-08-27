@@ -276,6 +276,33 @@ button.rc-btn-danger:hover {
   color: var(--rc-text);
 }
 
+/* recipes-ztt: matches Five Wonders' list-detail share button pattern
+   (rounded pill, small icon + label, subtle background) */
+.rc-share-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  background: var(--rc-bg);
+  border: 1px solid var(--rc-border);
+  border-radius: 999px;
+  padding: 6px 12px;
+  margin: 0;
+  color: var(--rc-text);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.rc-share-btn:hover {
+  background: #fff;
+}
+
+.rc-share-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
 .rc-detail-meta {
   display: flex;
   gap: 1.25rem;
