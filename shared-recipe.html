@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Morse Recipes — Shared Recipe</title>
+  <link rel="stylesheet" href="recipes.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <header>
+    <h1>🍲 Morse Recipes</h1>
+    <p style="color: var(--rc-muted); font-size: 0.9rem;">A recipe shared from our family's collection.</p>
+  </header>
+  <main>
+    <div class="card" id="recipeCard" style="display:none;">
+      <h2 id="recipeTitle"></h2>
+      <p id="recipeByline" style="color: var(--rc-muted); font-size: 0.9rem;"></p>
+      <p id="recipeDescription"></p>
+
+      <div class="rc-significance" id="significanceSection" style="display:none;">
+        <p class="rc-significance-label">💛 Why This Recipe Matters</p>
+        <p id="recipeSignificance"></p>
+      </div>
+
+      <div class="rc-detail-meta" id="recipeMeta"></div>
+
+      <h3>Ingredients</h3>
+      <ul class="rc-ingredients" id="ingredientsList"></ul>
+
+      <h3>Steps</h3>
+      <ol class="rc-steps" id="stepsList"></ol>
+
+      <div id="notesSection" style="display:none;">
+        <h3>Notes</h3>
+        <p id="recipeNotes"></p>
+      </div>
+
+      <p id="sourceLine" style="display:none; color: var(--rc-muted); font-size: 0.85rem;"></p>
+    </div>
+    <p id="errorBox" class="error" style="display:none;"></p>
+
+    <p style="text-align:center; margin-top: 2rem; color: var(--rc-muted); font-size: 0.85rem;">
+      Want to save and share your own family recipes? <a href="index.html">Check out Morse Recipes</a>.
+    </p>
+  </main>
+
+  <script>
+    const SUPABASE_URL = "https://hhkxmuxcmjzvpjvctgqk.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhoa3htdXhjbWp6dnBqdmN0Z3FrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczNTIzMjksImV4cCI6MjEwMjkyODMyOX0.ZnC7cGeydW2DDNZtwn1gUownpI2gWm1U2m2s_KQmXw0";
+
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const errorBox = document.getElementById("errorBox");
+    const recipeCard = document.getElementById("recipeCard");
+
+    function escapeHtml(s) {
+      const div = document.createElement("div");
+      div.textContent = s || "";
+      return div.innerHTML;
+    }
+
+    function showError(msg) {
+      errorBox.textContent = msg;
+      errorBox.style.display = "block";
+    }
+
+    async function loadSharedRecipe() {
+      const token = new URLSearchParams(window.location.search).get("token");
+      if (!token) {
+        showError("No recipe specified.");
+        return;
+      }
+
+      // recipes-b28.4: no auth required - get_shared_recipe() is a
+      // SECURITY DEFINER function anon can call directly, scoped to
+      // exactly the one recipe matching this token. See migration 010
+      // for why this isn't a plain RLS policy (that would leak every
+      // recipe to anon, not just this one).
+      const { data, error } = await sb.rpc("get_shared_recipe", { p_token: token });
+      const recipe = data && data[0];
+
+      if (error || !recipe) {
+        showError("This share link isn't valid, or the recipe may have been removed.");
+        return;
+      }
+
+      document.getElementById("recipeTitle").textContent = recipe.title;
+      document.title = `${recipe.title} — Morse Recipes`;
+
+      const authorName = [recipe.author_first_name, recipe.author_last_name].filter(Boolean).join(" ") || "a family member";
+      document.getElementById("recipeByline").textContent = `Added by ${authorName}`;
+
+      document.getElementById("recipeDescription").textContent = recipe.description || "";
+      document.getElementById("recipeDescription").style.display = recipe.description ? "block" : "none";
+
+      if (recipe.significance) {
+        document.getElementById("significanceSection").style.display = "block";
+        document.getElementById("recipeSignificance").textContent = recipe.significance;
+      }
+
+      const metaParts = [];
+      if (recipe.prep_minutes) metaParts.push(`<span><strong>${recipe.prep_minutes}</strong> min prep</span>`);
+      if (recipe.cook_minutes) metaParts.push(`<span><strong>${recipe.cook_minutes}</strong> min cook</span>`);
+      if (recipe.servings) metaParts.push(`<span><strong>${escapeHtml(recipe.servings)}</strong> servings</span>`);
+      document.getElementById("recipeMeta").innerHTML = metaParts.join("");
+
+      const ingredientsList = document.getElementById("ingredientsList");
+      ingredientsList.innerHTML = (recipe.ingredients || []).map(i => {
+        const parts = [i.quantity, i.unit, i.name].filter(Boolean);
+        return `<li>${escapeHtml(parts.join(" "))}</li>`;
+      }).join("") || "<li>No ingredients listed.</li>";
+
+      const stepsList = document.getElementById("stepsList");
+      stepsList.innerHTML = (recipe.instructions || []).map(s => `<li>${escapeHtml(s)}</li>`).join("") || "<li>No steps listed.</li>";
+
+      if (recipe.notes) {
+        document.getElementById("notesSection").style.display = "block";
+        document.getElementById("recipeNotes").textContent = recipe.notes;
+      }
+
+      if (recipe.source_name || recipe.source_url) {
+        const sourceLine = document.getElementById("sourceLine");
+        sourceLine.style.display = "block";
+        if (recipe.source_url) {
+          sourceLine.innerHTML = `Source: <a href="${escapeHtml(recipe.source_url)}" target="_blank" rel="noopener">${escapeHtml(recipe.source_name || recipe.source_url)}</a>`;
+        } else {
+          sourceLine.textContent = `Source: ${recipe.source_name}`;
+        }
+      }
+
+      recipeCard.style.display = "block";
+    }
+
+    document.addEventListener("DOMContentLoaded", loadSharedRecipe);
+  </script>
+</body>
+</html>

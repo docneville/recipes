@@ -44,6 +44,11 @@
 
       <p id="sourceLine" style="display:none; color: var(--rc-muted); font-size: 0.85rem;"></p>
 
+      <div style="display:flex; gap:0.5rem; margin-top: 1rem; flex-wrap:wrap;">
+        <button type="button" id="shareBtn" class="rc-btn-secondary">Share</button>
+      </div>
+      <p id="shareStatus" style="display:none; color: var(--rc-muted); font-size: 0.85rem;"></p>
+
       <div id="ownerActions" style="display:flex; gap:0.5rem; margin-top: 1rem;">
         <a id="editLink" class="rc-btn-primary" href="#">Edit</a>
         <button type="button" id="deleteBtn" class="rc-btn-danger">Delete</button>
@@ -63,6 +68,7 @@
 
     const errorBox = document.getElementById("errorBox");
     const recipeCard = document.getElementById("recipeCard");
+    let shareToken = null;
 
     function escapeHtml(s) {
       const div = document.createElement("div");
@@ -161,6 +167,8 @@
         }
       }
 
+      shareToken = recipe.share_token;
+
       document.getElementById("editLink").href = `add-recipe.html?id=${recipe.id}`;
 
       const { data: recipeTags } = await sb.from("recipe_tags").select("tags(name)").eq("recipe_id", recipe.id);
@@ -169,6 +177,30 @@
 
       recipeCard.style.display = "block";
     }
+
+    document.getElementById("shareBtn").addEventListener("click", async () => {
+      const shareUrl = `${window.location.origin}/shared-recipe.html?token=${shareToken}`;
+      const shareStatus = document.getElementById("shareStatus");
+
+      // Prefer the native share sheet on mobile; fall back to copying
+      // the link to the clipboard on desktop or if the user cancels.
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: document.getElementById("recipeTitle").textContent, url: shareUrl });
+          return;
+        } catch {
+          // user cancelled or share failed - fall through to clipboard
+        }
+      }
+
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        shareStatus.textContent = "Link copied - anyone with it can view this recipe, no account needed.";
+      } catch {
+        shareStatus.textContent = shareUrl;
+      }
+      shareStatus.style.display = "block";
+    });
 
     document.getElementById("deleteBtn").addEventListener("click", async () => {
       if (!confirm("Delete this recipe? This can't be undone.")) return;
