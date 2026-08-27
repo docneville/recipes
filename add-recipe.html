@@ -177,7 +177,10 @@
     async function findOrCreateTags(userId, names) {
       const tagIds = [];
       for (const rawName of names) {
-        const name = rawName.trim();
+        // recipes-6jh: lowercase/trim before matching, not just relying on
+        // the DB-side trigger - otherwise this lookup can miss an existing
+        // differently-cased tag and attempt a duplicate insert.
+        const name = rawName.trim().toLowerCase();
         if (!name) continue;
         const { data: existing } = await sb.from("tags").select("id").eq("user_id", userId).eq("name", name).maybeSingle();
         if (existing) {

@@ -31,6 +31,10 @@
         border-radius: 8px;
         width: 40px;
         height: 40px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         font-size: 1.25rem;
         line-height: 1;
         cursor: pointer;
