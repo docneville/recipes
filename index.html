@@ -32,6 +32,12 @@
       <p><a href="app.html" class="rc-btn-primary">Your recipes</a></p>
       <p style="margin-top: 1rem;"><a href="#" id="signOutLink">Sign out</a></p>
     </div>
+
+    <div class="card" id="pendingCard" style="display:none; text-align:center;">
+      <h2 id="pendingHeading">Waiting for approval</h2>
+      <p id="pendingMessage"></p>
+      <p style="margin-top: 1rem;"><a href="#" id="pendingSignOutLink">Sign out</a></p>
+    </div>
   </main>
 
   <script>
@@ -42,9 +48,17 @@
 
     const signedOutCard = document.getElementById("signedOutCard");
     const signedInCard = document.getElementById("signedInCard");
+    const pendingCard = document.getElementById("pendingCard");
     const googleSignInBtn = document.getElementById("googleSignInBtn");
     const errorBox = document.getElementById("errorBox");
     const signOutLink = document.getElementById("signOutLink");
+    const pendingSignOutLink = document.getElementById("pendingSignOutLink");
+
+    const APPROVAL_MESSAGES = {
+      pending: "Thanks for signing up! Your account is waiting for approval from the family admin - check back soon.",
+      rejected: "Your access request was not approved.",
+      suspended: "Your account has been suspended.",
+    };
 
     function showError(msg) {
       errorBox.textContent = msg;
@@ -52,11 +66,15 @@
     }
 
     // Same as app.html's ensureProfile() - kept here too since this page
-    // is now the OAuth landing target and needs first_name for the
-    // welcome message right away, without a round-trip through app.html.
+    // is now the OAuth landing target and needs first_name (and, since
+    // recipes-b28.1, approval_status) right away, without a round-trip
+    // through app.html. approval_status/is_admin are DB-defaulted
+    // ('pending'/false) on insert - never set client-side, since the
+    // authenticated role's INSERT/UPDATE grants on profiles (migration
+    // 006) don't even include those columns.
     async function ensureProfile(user) {
       const meta = user.user_metadata || {};
-      const { data: existing } = await sb.from("profiles").select("id, first_name, last_name, avatar_url").eq("id", user.id).maybeSingle();
+      const { data: existing } = await sb.from("profiles").select("id, first_name, last_name, avatar_url, approval_status").eq("id", user.id).maybeSingle();
 
       if (!existing) {
         const { data: created } = await sb.from("profiles").insert({
@@ -64,8 +82,8 @@
           first_name: meta.given_name || meta.full_name?.split(" ")[0] || null,
           last_name: meta.family_name || null,
           avatar_url: meta.avatar_url || meta.picture || null,
-        }).select("first_name").single();
-        return created?.first_name || null;
+        }).select("first_name, approval_status").single();
+        return { firstName: created?.first_name || null, approvalStatus: created?.approval_status || "pending" };
       }
 
       const patch = {};
@@ -74,9 +92,9 @@
       if (!existing.last_name && meta.family_name) patch.last_name = meta.family_name;
       if (Object.keys(patch).length > 0) {
         await sb.from("profiles").update(patch).eq("id", user.id);
-        return patch.first_name || existing.first_name || null;
+        return { firstName: patch.first_name || existing.first_name || null, approvalStatus: existing.approval_status };
       }
-      return existing.first_name || null;
+      return { firstName: existing.first_name || null, approvalStatus: existing.approval_status };
     }
 
     document.addEventListener("DOMContentLoaded", async () => {
@@ -85,15 +103,26 @@
       if (!session) {
         signedOutCard.style.display = "block";
         signedInCard.style.display = "none";
+        pendingCard.style.display = "none";
         return;
       }
 
-      const firstName = await ensureProfile(session.user);
+      const { firstName, approvalStatus } = await ensureProfile(session.user);
+
+      if (approvalStatus !== "approved") {
+        signedOutCard.style.display = "none";
+        signedInCard.style.display = "none";
+        pendingCard.style.display = "block";
+        document.getElementById("pendingMessage").textContent = APPROVAL_MESSAGES[approvalStatus] || APPROVAL_MESSAGES.pending;
+        return;
+      }
+
       const displayName = firstName || session.user.email.split("@")[0];
 
       document.getElementById("welcomeMessage").textContent = `Welcome, ${displayName}!`;
       signedOutCard.style.display = "none";
       signedInCard.style.display = "block";
+      pendingCard.style.display = "none";
 
       await RecipesNav.init({ sb });
     });
@@ -116,6 +145,12 @@
     });
 
     signOutLink.addEventListener("click", async (e) => {
+      e.preventDefault();
+      await sb.auth.signOut();
+      window.location.reload();
+    });
+
+    pendingSignOutLink.addEventListener("click", async (e) => {
       e.preventDefault();
       await sb.auth.signOut();
       window.location.reload();
