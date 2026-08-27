@@ -54,6 +54,9 @@
         <label for="tags">Tags (comma-separated)</label>
         <input type="text" id="tags" placeholder="e.g. dinner, italian, quick">
 
+        <label for="significance">Why This Recipe Matters to Us</label>
+        <textarea id="significance" rows="3" placeholder="Whose recipe is this? What's the story or occasion behind it?"></textarea>
+
         <label for="notes">Notes</label>
         <textarea id="notes" rows="3"></textarea>
 
@@ -215,6 +218,7 @@
       document.getElementById("servings").value = recipe.servings || "";
       document.getElementById("source_name").value = recipe.source_name || "";
       document.getElementById("source_url").value = recipe.source_url || "";
+      document.getElementById("significance").value = recipe.significance || "";
       document.getElementById("notes").value = recipe.notes || "";
 
       (recipe.ingredients || []).forEach(i => addIngredientRow(i));
@@ -248,6 +252,7 @@
         source_url: document.getElementById("source_url").value.trim() || null,
         ingredients: collectIngredients(),
         instructions: collectSteps(),
+        significance: document.getElementById("significance").value.trim() || null,
         notes: document.getElementById("notes").value.trim() || null,
       };
 

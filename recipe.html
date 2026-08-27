@@ -17,6 +17,12 @@
       <h2 id="recipeTitle"></h2>
       <p id="recipeByline" style="color: var(--rc-muted); font-size: 0.9rem;"></p>
       <p id="recipeDescription"></p>
+
+      <div class="rc-significance" id="significanceSection" style="display:none;">
+        <p class="rc-significance-label">💛 Why This Recipe Matters</p>
+        <p id="recipeSignificance"></p>
+      </div>
+
       <div class="rc-detail-meta" id="recipeMeta"></div>
       <div class="rc-recipe-tags" id="recipeTags"></div>
 
@@ -106,6 +112,11 @@
       document.getElementById("recipeByline").textContent = `Added by ${authorName}`;
       document.getElementById("recipeDescription").textContent = recipe.description || "";
       document.getElementById("recipeDescription").style.display = recipe.description ? "block" : "none";
+
+      if (recipe.significance) {
+        document.getElementById("significanceSection").style.display = "block";
+        document.getElementById("recipeSignificance").textContent = recipe.significance;
+      }
 
       const metaParts = [];
       if (recipe.prep_minutes) metaParts.push(`<span><strong>${recipe.prep_minutes}</strong> min prep</span>`);
