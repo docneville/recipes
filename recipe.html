@@ -15,6 +15,7 @@
   <main>
     <div class="card" id="recipeCard" style="display:none;">
       <h2 id="recipeTitle"></h2>
+      <p id="recipeByline" style="color: var(--rc-muted); font-size: 0.9rem;"></p>
       <p id="recipeDescription"></p>
       <div class="rc-detail-meta" id="recipeMeta"></div>
       <div class="rc-recipe-tags" id="recipeTags"></div>
@@ -37,7 +38,7 @@
 
       <p id="sourceLine" style="display:none; color: var(--rc-muted); font-size: 0.85rem;"></p>
 
-      <div style="display:flex; gap:0.5rem; margin-top: 1rem;">
+      <div id="ownerActions" style="display:flex; gap:0.5rem; margin-top: 1rem;">
         <a id="editLink" class="rc-btn-primary" href="#">Edit</a>
         <button type="button" id="deleteBtn" class="rc-btn-danger">Delete</button>
       </div>
@@ -83,14 +84,26 @@
         return;
       }
 
-      const { data: recipe, error } = await sb.from("recipes").select("*").eq("id", recipeId).eq("user_id", userId).single();
+      // recipes-b28.3: no .eq("user_id", userId) here - recipes-b28.2's
+      // RLS already lets any approved user SELECT any recipe, and this
+      // page needs to be viewable for recipes you don't own (that's the
+      // whole point of "All Recipes"). Ownership only gates the Edit/
+      // Delete actions below, not visibility.
+      const { data: recipe, error } = await sb.from("recipes").select("*").eq("id", recipeId).single();
       if (error || !recipe) {
         showError("Recipe not found.");
         return;
       }
 
+      const isOwner = recipe.user_id === userId;
+      document.getElementById("ownerActions").style.display = isOwner ? "flex" : "none";
+
       document.getElementById("recipeTitle").textContent = recipe.title;
       RecipesNav.setBreadcrumbs([{ label: "Home", href: "index.html" }, { label: "Your Recipes", href: "app.html" }, { label: recipe.title }]);
+
+      const { data: authorProfile } = await sb.from("profiles").select("first_name, last_name").eq("id", recipe.user_id).maybeSingle();
+      const authorName = [authorProfile?.first_name, authorProfile?.last_name].filter(Boolean).join(" ") || "a family member";
+      document.getElementById("recipeByline").textContent = `Added by ${authorName}`;
       document.getElementById("recipeDescription").textContent = recipe.description || "";
       document.getElementById("recipeDescription").style.display = recipe.description ? "block" : "none";
 
