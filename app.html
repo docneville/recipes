@@ -18,6 +18,11 @@
       <a href="import.html" class="rc-btn-primary" style="background:#fff; color:var(--rc-accent-dark); border:1px solid var(--rc-border);">📷 Import from photo</a>
     </div>
 
+    <div class="rc-scope-toggle" id="scopeToggle">
+      <button type="button" class="rc-scope-btn active" data-scope="mine">My Recipes</button>
+      <button type="button" class="rc-scope-btn" data-scope="all">All Recipes</button>
+    </div>
+
     <div class="rc-toolbar">
       <input type="search" id="searchInput" placeholder="Search recipes…">
     </div>
@@ -38,10 +43,13 @@
     const tagFilter = document.getElementById("tagFilter");
     const recipeList = document.getElementById("recipeList");
     const emptyState = document.getElementById("emptyState");
+    const scopeToggle = document.getElementById("scopeToggle");
 
     let allRecipes = [];
     let allTags = [];
     let activeTagId = null;
+    let scope = "mine"; // or "all" - recipes-b28.2
+    let currentUserId = null;
 
     async function requireSession() {
       const { data: { session }, error } = await sb.auth.getSession();
@@ -118,9 +126,18 @@
     }
 
     async function loadData(userId) {
+      // recipes-b28.2: "mine" filters by owner client-side via .eq();
+      // "all" leaves it unfiltered and relies on the RLS policy that now
+      // permits any approved user to SELECT all recipes. Tags are always
+      // fetched unfiltered - they're a shared family vocabulary now, not
+      // per-user, so the filter chips should reflect everyone's tags
+      // regardless of which scope is showing.
+      let recipesQuery = sb.from("recipes").select("id, user_id, title, prep_minutes, cook_minutes, servings, created_at").order("created_at", { ascending: false });
+      if (scope === "mine") recipesQuery = recipesQuery.eq("user_id", userId);
+
       const [{ data: recipes, error: rErr }, { data: tags, error: tErr }, { data: recipeTags, error: rtErr }] = await Promise.all([
-        sb.from("recipes").select("id, title, prep_minutes, cook_minutes, servings, created_at").eq("user_id", userId).order("created_at", { ascending: false }),
-        sb.from("tags").select("id, name").eq("user_id", userId).order("name", { ascending: true }),
+        recipesQuery,
+        sb.from("tags").select("id, name").order("name", { ascending: true }),
         sb.from("recipe_tags").select("recipe_id, tag_id"),
       ]);
 
@@ -183,6 +200,17 @@
 
     searchInput.addEventListener("input", render);
 
+    scopeToggle.querySelectorAll(".rc-scope-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        if (btn.dataset.scope === scope) return;
+        scope = btn.dataset.scope;
+        scopeToggle.querySelectorAll(".rc-scope-btn").forEach(b => b.classList.toggle("active", b.dataset.scope === scope));
+        activeTagId = null; // clear a tag filter that may not apply to the new scope's recipes
+        RecipesNav.setBreadcrumbs([{ label: "Home", href: "index.html" }, { label: scope === "mine" ? "Your Recipes" : "All Recipes" }]);
+        await loadData(currentUserId);
+      });
+    });
+
     document.addEventListener("DOMContentLoaded", async () => {
       let session;
       try {
@@ -190,9 +218,10 @@
       } catch {
         return;
       }
+      currentUserId = session.user.id;
       await RecipesNav.init({ sb, breadcrumbs: [{ label: "Home", href: "index.html" }, { label: "Your Recipes" }] });
       await ensureProfile(session.user);
-      await loadData(session.user.id);
+      await loadData(currentUserId);
     });
   </script>
 </body>

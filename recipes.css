@@ -148,6 +148,34 @@ button.rc-btn-danger:hover {
 }
 
 /* Recipe list */
+.rc-scope-toggle {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.rc-scope-btn {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--rc-border);
+  background: #fff;
+  color: var(--rc-text);
+  font-size: 0.9rem;
+  cursor: pointer;
+  margin: 0;
+}
+
+.rc-scope-btn:hover {
+  background: var(--rc-bg);
+}
+
+.rc-scope-btn.active {
+  background: var(--rc-accent);
+  color: #fff;
+  border-color: var(--rc-accent);
+}
+
 .rc-toolbar {
   display: flex;
   gap: 0.5rem;

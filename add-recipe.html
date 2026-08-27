@@ -180,9 +180,15 @@
         // recipes-6jh: lowercase/trim before matching, not just relying on
         // the DB-side trigger - otherwise this lookup can miss an existing
         // differently-cased tag and attempt a duplicate insert.
+        //
+        // recipes-b28.2: tags are a shared family vocabulary now, not
+        // per-user - match against ALL tags (not just this user's own),
+        // so reusing "dinner" that someone else already created doesn't
+        // create a second row. user_id on insert just records who
+        // coined it, it's not used for matching or RLS anymore.
         const name = rawName.trim().toLowerCase();
         if (!name) continue;
-        const { data: existing } = await sb.from("tags").select("id").eq("user_id", userId).eq("name", name).maybeSingle();
+        const { data: existing } = await sb.from("tags").select("id").eq("name", name).maybeSingle();
         if (existing) {
           tagIds.push(existing.id);
         } else {
