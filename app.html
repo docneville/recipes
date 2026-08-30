@@ -90,11 +90,16 @@
           ? `<div class="rc-recipe-tags">${r.tagNames.map(t => `<span>${escapeHtml(t)}</span>`).join("")}</div>`
           : "";
 
+        const thumbHtml = r.thumbUrl ? `<img class="rc-recipe-thumb" src="${r.thumbUrl}" alt="">` : "";
+
         return `
-          <a class="rc-recipe-card" href="recipe.html?id=${r.id}">
-            <h3>${escapeHtml(r.title)}</h3>
-            ${metaParts.length ? `<div class="rc-recipe-meta">${metaParts.join(" · ")}</div>` : ""}
-            ${tagsHtml}
+          <a class="rc-recipe-card ${r.thumbUrl ? "rc-recipe-card--has-thumb" : ""}" href="recipe.html?id=${r.id}">
+            ${thumbHtml}
+            <div class="rc-recipe-card-body">
+              <h3>${escapeHtml(r.title)}</h3>
+              ${metaParts.length ? `<div class="rc-recipe-meta">${metaParts.join(" · ")}</div>` : ""}
+              ${tagsHtml}
+            </div>
           </a>
         `;
       }).join("");
@@ -132,17 +137,25 @@
       // fetched unfiltered - they're a shared family vocabulary now, not
       // per-user, so the filter chips should reflect everyone's tags
       // regardless of which scope is showing.
-      let recipesQuery = sb.from("recipes").select("id, user_id, title, prep_minutes, cook_minutes, servings, created_at").order("created_at", { ascending: false });
+      let recipesQuery = sb.from("recipes").select("id, user_id, title, prep_minutes, cook_minutes, servings, created_at, main_photo_id").order("created_at", { ascending: false });
       if (scope === "mine") recipesQuery = recipesQuery.eq("user_id", userId);
 
-      const [{ data: recipes, error: rErr }, { data: tags, error: tErr }, { data: recipeTags, error: rtErr }] = await Promise.all([
+      // recipes-ddd: recipe_photos fetched unfiltered (same "select all,
+      // group client-side" pattern as tags/recipe_tags above, relying on
+      // RLS's is_approved() gate) rather than a separate per-recipe
+      // query - one round trip for however many cards are visible.
+      // Ordered oldest-first so, for a recipe with no main_photo_id set,
+      // the first entry in its group is the correct "first uploaded"
+      // fallback without any extra sorting.
+      const [{ data: recipes, error: rErr }, { data: tags, error: tErr }, { data: recipeTags, error: rtErr }, { data: photos, error: pErr }] = await Promise.all([
         recipesQuery,
         sb.from("tags").select("id, name").order("name", { ascending: true }),
         sb.from("recipe_tags").select("recipe_id, tag_id"),
+        sb.from("recipe_photos").select("id, recipe_id, storage_path").order("created_at", { ascending: true }),
       ]);
 
-      if (rErr || tErr || rtErr) {
-        console.error(rErr || tErr || rtErr);
+      if (rErr || tErr || rtErr || pErr) {
+        console.error(rErr || tErr || rtErr || pErr);
         recipeList.innerHTML = `<p class="error">Failed to load recipes.</p>`;
         return;
       }
@@ -157,14 +170,32 @@
       const tagNameById = {};
       allTags.forEach(t => { tagNameById[t.id] = t.name; });
 
+      const photosByRecipe = {};
+      (photos || []).forEach(p => {
+        if (!photosByRecipe[p.recipe_id]) photosByRecipe[p.recipe_id] = [];
+        photosByRecipe[p.recipe_id].push(p);
+      });
+
       allRecipes = (recipes || []).map(r => {
         const tagIds = tagsByRecipe[r.id] || [];
+        const recipePhotos = photosByRecipe[r.id] || [];
+        const thumbPhoto = recipePhotos.find(p => p.id === r.main_photo_id) || recipePhotos[0] || null;
         return {
           ...r,
           tagIds: new Set(tagIds),
           tagNames: tagIds.map(id => tagNameById[id]).filter(Boolean),
+          thumbStoragePath: thumbPhoto?.storage_path || null,
+          thumbUrl: null,
         };
       });
+
+      const withThumbs = allRecipes.filter(r => r.thumbStoragePath);
+      if (withThumbs.length > 0) {
+        const signedUrls = await Promise.all(
+          withThumbs.map(r => sb.storage.from("recipe-photos").createSignedUrl(r.thumbStoragePath, 3600))
+        );
+        withThumbs.forEach((r, i) => { r.thumbUrl = signedUrls[i]?.data?.signedUrl || null; });
+      }
 
       renderTagFilter();
       render();
