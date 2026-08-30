@@ -302,6 +302,10 @@ button.rc-btn-danger:hover {
   width: 140px;
 }
 
+.rc-photo-img-wrap {
+  position: relative;
+}
+
 .rc-photo-item img {
   width: 140px;
   height: 140px;
@@ -310,23 +314,42 @@ button.rc-btn-danger:hover {
   display: block;
 }
 
+.rc-photo-main-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: var(--rc-accent);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+}
+
 .rc-photo-caption {
   margin: 0.35rem 0 0;
   font-size: 0.8rem;
   color: var(--rc-muted);
 }
 
-.rc-photo-delete {
+.rc-photo-set-main, .rc-photo-delete {
   margin-top: 0.35rem;
   width: 100%;
   padding: 0.3rem;
   font-size: 0.75rem;
   background: none;
   border: 1px solid var(--rc-border);
+}
+
+.rc-photo-set-main {
+  color: var(--rc-accent-dark);
+}
+
+.rc-photo-delete {
   color: var(--rc-danger);
 }
 
-.rc-photo-delete:hover {
+.rc-photo-set-main:hover, .rc-photo-delete:hover {
   background: var(--rc-bg);
 }
 

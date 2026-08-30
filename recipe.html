@@ -86,6 +86,7 @@
     let shareToken = null;
     let currentUserId = null;
     let isRecipeOwner = false;
+    let currentMainPhotoId = null;
 
     function escapeHtml(s) {
       const div = document.createElement("div");
@@ -126,6 +127,7 @@
 
       const isOwner = recipe.user_id === userId;
       isRecipeOwner = isOwner;
+      currentMainPhotoId = recipe.main_photo_id;
       document.getElementById("ownerActions").style.display = isOwner ? "flex" : "none";
       document.getElementById("addPhotoForm").style.display = isOwner ? "block" : "none";
 
@@ -227,14 +229,33 @@
       grid.innerHTML = photos.map((p, i) => {
         const url = signedUrls[i]?.data?.signedUrl;
         if (!url) return "";
+        const isMain = p.id === currentMainPhotoId;
         return `
           <div class="rc-photo-item">
-            <img src="${url}" alt="">
+            <div class="rc-photo-img-wrap">
+              <img src="${url}" alt="">
+              ${isMain ? `<span class="rc-photo-main-badge">★ Main</span>` : ""}
+            </div>
             ${p.description ? `<p class="rc-photo-caption">${escapeHtml(p.description)}</p>` : ""}
+            ${isRecipeOwner ? `<button type="button" class="rc-photo-set-main" data-photo-id="${p.id}">${isMain ? "Unset as main" : "Set as main"}</button>` : ""}
             ${isRecipeOwner ? `<button type="button" class="rc-photo-delete" data-photo-id="${p.id}" data-storage-path="${escapeHtml(p.storage_path)}">Delete</button>` : ""}
           </div>
         `;
       }).join("");
+
+      grid.querySelectorAll(".rc-photo-set-main").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          const photoId = btn.dataset.photoId;
+          const newMainId = currentMainPhotoId === photoId ? null : photoId;
+          const { error } = await sb.from("recipes").update({ main_photo_id: newMainId }).eq("id", recipeId);
+          if (error) {
+            alert(error.message);
+            return;
+          }
+          currentMainPhotoId = newMainId;
+          await loadFinishedPhotos();
+        });
+      });
 
       grid.querySelectorAll(".rc-photo-delete").forEach(btn => {
         btn.addEventListener("click", async () => {
@@ -243,6 +264,7 @@
           const storagePath = btn.dataset.storagePath;
           await sb.storage.from("recipe-photos").remove([storagePath]);
           await sb.from("recipe_photos").delete().eq("id", photoId);
+          if (currentMainPhotoId === photoId) currentMainPhotoId = null;
           await loadFinishedPhotos();
         });
       });
