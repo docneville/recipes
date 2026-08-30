@@ -291,6 +291,45 @@ button.rc-btn-danger:hover {
   color: var(--rc-text);
 }
 
+/* recipes-022.3: finished-dish photo grid */
+.rc-photo-grid {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.rc-photo-item {
+  width: 140px;
+}
+
+.rc-photo-item img {
+  width: 140px;
+  height: 140px;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+}
+
+.rc-photo-caption {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: var(--rc-muted);
+}
+
+.rc-photo-delete {
+  margin-top: 0.35rem;
+  width: 100%;
+  padding: 0.3rem;
+  font-size: 0.75rem;
+  background: none;
+  border: 1px solid var(--rc-border);
+  color: var(--rc-danger);
+}
+
+.rc-photo-delete:hover {
+  background: var(--rc-bg);
+}
+
 /* recipes-ztt: matches Five Wonders' list-detail share button pattern
    (rounded pill, small icon + label, subtle background) */
 .rc-share-btn {

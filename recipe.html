@@ -39,6 +39,19 @@
       <h3>Steps</h3>
       <ol class="rc-steps" id="stepsList"></ol>
 
+      <h3>Finished Dish Photos</h3>
+      <div id="finishedPhotosGrid" class="rc-photo-grid"></div>
+      <p id="finishedPhotosEmpty" style="display:none; color: var(--rc-muted); font-size:0.85rem;">No photos yet.</p>
+
+      <div id="addPhotoForm" style="display:none; margin-top:0.75rem;">
+        <label for="newPhotoFile">Add a photo</label>
+        <input type="file" id="newPhotoFile" accept="image/*">
+        <label for="newPhotoDescription">Description (optional)</label>
+        <input type="text" id="newPhotoDescription" placeholder="e.g. First attempt - a bit too salty!">
+        <button type="button" id="addPhotoBtn">Add photo</button>
+        <p id="photoUploadError" class="error" style="display:none;"></p>
+      </div>
+
       <div id="notesSection" style="display:none;">
         <h3>Notes</h3>
         <p id="recipeNotes"></p>
@@ -71,6 +84,8 @@
     const errorBox = document.getElementById("errorBox");
     const recipeCard = document.getElementById("recipeCard");
     let shareToken = null;
+    let currentUserId = null;
+    let isRecipeOwner = false;
 
     function escapeHtml(s) {
       const div = document.createElement("div");
@@ -110,7 +125,9 @@
       }
 
       const isOwner = recipe.user_id === userId;
+      isRecipeOwner = isOwner;
       document.getElementById("ownerActions").style.display = isOwner ? "flex" : "none";
+      document.getElementById("addPhotoForm").style.display = isOwner ? "block" : "none";
 
       document.getElementById("recipeTitle").textContent = recipe.title;
       RecipesNav.setBreadcrumbs([{ label: "Home", href: "index.html" }, { label: "Your Recipes", href: "app.html" }, { label: recipe.title }]);
@@ -178,6 +195,80 @@
       document.getElementById("recipeTags").innerHTML = tagNames.map(t => `<span>${escapeHtml(t)}</span>`).join("");
 
       recipeCard.style.display = "block";
+
+      await loadFinishedPhotos();
+    }
+
+    // recipes-022.3: finished-dish photos, multiple per recipe, each
+    // with an optional description. Any approved user can see them
+    // (matches recipe_photos' SELECT policy, same as recipes/tags
+    // themselves post-b28.2); only the recipe owner can add/remove them.
+    async function loadFinishedPhotos() {
+      const grid = document.getElementById("finishedPhotosGrid");
+      const empty = document.getElementById("finishedPhotosEmpty");
+
+      const { data: photos, error } = await sb
+        .from("recipe_photos")
+        .select("id, storage_path, description")
+        .eq("recipe_id", recipeId)
+        .order("created_at", { ascending: true });
+
+      if (error || !photos || photos.length === 0) {
+        grid.innerHTML = "";
+        empty.style.display = "block";
+        return;
+      }
+      empty.style.display = "none";
+
+      const signedUrls = await Promise.all(
+        photos.map(p => sb.storage.from("recipe-photos").createSignedUrl(p.storage_path, 3600))
+      );
+
+      grid.innerHTML = photos.map((p, i) => {
+        const url = signedUrls[i]?.data?.signedUrl;
+        if (!url) return "";
+        return `
+          <div class="rc-photo-item">
+            <img src="${url}" alt="">
+            ${p.description ? `<p class="rc-photo-caption">${escapeHtml(p.description)}</p>` : ""}
+            ${isRecipeOwner ? `<button type="button" class="rc-photo-delete" data-photo-id="${p.id}" data-storage-path="${escapeHtml(p.storage_path)}">Delete</button>` : ""}
+          </div>
+        `;
+      }).join("");
+
+      grid.querySelectorAll(".rc-photo-delete").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          if (!confirm("Delete this photo?")) return;
+          const photoId = btn.dataset.photoId;
+          const storagePath = btn.dataset.storagePath;
+          await sb.storage.from("recipe-photos").remove([storagePath]);
+          await sb.from("recipe_photos").delete().eq("id", photoId);
+          await loadFinishedPhotos();
+        });
+      });
+    }
+
+    // Same resize as import.html - caps the long edge at Claude's
+    // effective vision resolution; doesn't need Claude here, but keeps
+    // uploads small/fast regardless.
+    async function resizeImageForUpload(file, maxDimension = 1568, quality = 0.85) {
+      if (!file.type.startsWith("image/") || file.type === "image/gif") return file;
+
+      const imgBitmap = await createImageBitmap(file);
+      const scale = Math.min(1, maxDimension / Math.max(imgBitmap.width, imgBitmap.height));
+      if (scale === 1) return file;
+
+      const targetW = Math.round(imgBitmap.width * scale);
+      const targetH = Math.round(imgBitmap.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = targetW;
+      canvas.height = targetH;
+      canvas.getContext("2d").drawImage(imgBitmap, 0, 0, targetW, targetH);
+
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", quality));
+      if (!blob) return file;
+
+      return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
     }
 
     document.getElementById("shareBtn").addEventListener("click", async () => {
@@ -204,6 +295,48 @@
       shareStatus.style.display = "block";
     });
 
+    document.getElementById("addPhotoBtn").addEventListener("click", async () => {
+      const fileInput = document.getElementById("newPhotoFile");
+      const descInput = document.getElementById("newPhotoDescription");
+      const addPhotoBtn = document.getElementById("addPhotoBtn");
+      const photoUploadError = document.getElementById("photoUploadError");
+      photoUploadError.style.display = "none";
+
+      const file = fileInput.files[0];
+      if (!file) {
+        photoUploadError.textContent = "Choose a photo first.";
+        photoUploadError.style.display = "block";
+        return;
+      }
+
+      addPhotoBtn.disabled = true;
+      addPhotoBtn.textContent = "Uploading…";
+
+      try {
+        const resized = await resizeImageForUpload(file);
+        const storagePath = `${currentUserId}/finished/${recipeId}/${crypto.randomUUID()}-${resized.name}`;
+        const { error: uploadError } = await sb.storage.from("recipe-photos").upload(storagePath, resized, { contentType: resized.type });
+        if (uploadError) throw new Error(uploadError.message);
+
+        const { error: insertError } = await sb.from("recipe_photos").insert({
+          recipe_id: recipeId,
+          storage_path: storagePath,
+          description: descInput.value.trim() || null,
+        });
+        if (insertError) throw new Error(insertError.message);
+
+        fileInput.value = "";
+        descInput.value = "";
+        await loadFinishedPhotos();
+      } catch (err) {
+        photoUploadError.textContent = err.message;
+        photoUploadError.style.display = "block";
+      }
+
+      addPhotoBtn.disabled = false;
+      addPhotoBtn.textContent = "Add photo";
+    });
+
     document.getElementById("deleteBtn").addEventListener("click", async () => {
       if (!confirm("Delete this recipe? This can't be undone.")) return;
       const session = await requireSession();
@@ -222,8 +355,9 @@
       } catch {
         return;
       }
+      currentUserId = session.user.id;
       await RecipesNav.init({ sb, breadcrumbs: [{ label: "Home", href: "index.html" }, { label: "Your Recipes", href: "app.html" }, { label: "…" }] });
-      await loadRecipe(session.user.id);
+      await loadRecipe(currentUserId);
     });
   </script>
 </body>
