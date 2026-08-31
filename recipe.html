@@ -72,6 +72,12 @@
     <p id="errorBox" class="error" style="display:none;"></p>
   </main>
 
+  <div id="lightboxOverlay" class="rc-lightbox-overlay">
+    <button type="button" id="lightboxClose" class="rc-lightbox-close" aria-label="Close">×</button>
+    <img id="lightboxImg" src="" alt="">
+    <p id="lightboxCaption" class="rc-lightbox-caption"></p>
+  </div>
+
   <script>
     const SUPABASE_URL = "https://hhkxmuxcmjzvpjvctgqk.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhoa3htdXhjbWp6dnBqdmN0Z3FrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczNTIzMjksImV4cCI6MjEwMjkyODMyOX0.ZnC7cGeydW2DDNZtwn1gUownpI2gWm1U2m2s_KQmXw0";
@@ -170,7 +176,7 @@
           recipe.source_photo_paths.map(path => sb.storage.from("recipe-photos").createSignedUrl(path, 3600))
         );
         const thumbsHtml = signedUrls
-          .map(({ data }) => data ? `<img src="${data.signedUrl}" alt="" style="max-width:120px; max-height:120px; border-radius:8px; object-fit:cover;">` : "")
+          .map(({ data }) => data ? `<img src="${data.signedUrl}" alt="" class="rc-lightbox-trigger" style="max-width:120px; max-height:120px; border-radius:8px; object-fit:cover; cursor:pointer;">` : "")
           .join("");
         if (thumbsHtml) {
           document.getElementById("sourcePhotosSection").style.display = "block";
@@ -233,7 +239,7 @@
         return `
           <div class="rc-photo-item">
             <div class="rc-photo-img-wrap">
-              <img src="${url}" alt="">
+              <img src="${url}" alt="" class="rc-lightbox-trigger" style="cursor:pointer;" data-caption="${escapeHtml(p.description || "")}">
               ${isMain ? `<span class="rc-photo-main-badge">★ Main</span>` : ""}
             </div>
             ${p.description ? `<p class="rc-photo-caption">${escapeHtml(p.description)}</p>` : ""}
@@ -292,6 +298,41 @@
 
       return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
     }
+
+    // recipes-1dm: one shared lightbox for both photo grids (recipe_photos
+    // and the imported-from source screenshots). Delegated on document
+    // rather than bound per-image, since both grids replace their
+    // innerHTML wholesale on every load/upload/delete - a direct
+    // listener would go stale.
+    const lightboxOverlay = document.getElementById("lightboxOverlay");
+    const lightboxImg = document.getElementById("lightboxImg");
+    const lightboxCaption = document.getElementById("lightboxCaption");
+
+    function openLightbox(url, caption) {
+      lightboxImg.src = url;
+      lightboxCaption.textContent = caption || "";
+      lightboxCaption.style.display = caption ? "block" : "none";
+      lightboxOverlay.classList.add("open");
+    }
+
+    function closeLightbox() {
+      lightboxOverlay.classList.remove("open");
+      lightboxImg.src = "";
+    }
+
+    document.addEventListener("click", (e) => {
+      if (e.target.classList.contains("rc-lightbox-trigger")) {
+        openLightbox(e.target.src, e.target.dataset.caption);
+      }
+    });
+
+    lightboxOverlay.addEventListener("click", (e) => {
+      if (e.target === lightboxOverlay) closeLightbox();
+    });
+    document.getElementById("lightboxClose").addEventListener("click", closeLightbox);
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeLightbox();
+    });
 
     document.getElementById("shareBtn").addEventListener("click", async () => {
       const shareUrl = `${window.location.origin}/shared-recipe.html?token=${shareToken}`;
